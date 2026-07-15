@@ -8,24 +8,34 @@ let chunkUrl = null;
 let timerInterval = null;
 let elapsed = 0;
 
+function log(...args) {
+  console.log("[POP]", ...args);
+}
+
 function sendCommand(msg) {
+  log("enviando comando:", msg.type);
   return new Promise((resolve) => {
     chrome.runtime.sendMessage(msg, (res) => {
       if (chrome.runtime.lastError) {
+        log("error en respuesta:", chrome.runtime.lastError.message);
         resolve(null);
         return;
       }
+      log("respuesta:", res);
       resolve(res);
     });
   });
 }
 
 async function refreshState() {
+  log("refreshState");
   const { state } = await chrome.storage.local.get("state");
+  log("estado actual:", state);
   applyState(state || { isRecording: false, videoUrl: null, startedAt: null });
 }
 
 function applyState(state) {
+  log("applyState:", state);
   if (state.isRecording) {
     statusEl.textContent = "Grabando...";
     statusEl.classList.add("recording");
@@ -77,38 +87,47 @@ function updateTimer() {
 }
 
 startBtn.addEventListener("click", () => {
+  log("click Iniciar grabación");
   startBtn.disabled = true;
   statusEl.textContent = "Elige fuente...";
   chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (streamId) => {
+    log("chooseDesktopMedia callback, streamId:", streamId);
     startBtn.disabled = false;
     if (!streamId) {
       statusEl.textContent = "Permiso denegado";
       return;
     }
-    // Limpiar grabación anterior antes de empezar
+    log("limpiando estado anterior");
     await chrome.storage.local.remove("state");
+    log("enviando START_RECORDING");
     const res = await sendCommand({ type: "START_RECORDING", desktopStreamId: streamId });
-    console.log("[POP] START_RECORDING respuesta:", res);
+    log("START_RECORDING resultado:", res);
     refreshState();
   });
 });
 
 stopBtn.addEventListener("click", async () => {
+  log("click Detener");
   await sendCommand({ type: "STOP_RECORDING" });
   refreshState();
 });
 
 downloadBtn.addEventListener("click", () => {
+  log("click Descargar, chunkUrl size:", chunkUrl?.length);
   if (!chunkUrl) return;
   const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
+  log("descargando:", filename);
   chrome.downloads.download({ url: chunkUrl, filename, saveAs: true });
 });
 
-// Escuchar cambios de estado en storage
 chrome.storage.onChanged.addListener((changes, area) => {
+  log("storage.onChanged, area:", area, "keys:", Object.keys(changes));
   if (area === "local" && changes.state) {
     applyState(changes.state.newValue);
   }
 });
 
-document.addEventListener("DOMContentLoaded", refreshState);
+document.addEventListener("DOMContentLoaded", () => {
+  log("popup cargado");
+  refreshState();
+});
