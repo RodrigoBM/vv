@@ -87,7 +87,6 @@ startBtn.addEventListener("click", () => {
     }
     // Limpiar grabación anterior antes de empezar
     await chrome.storage.local.remove("state");
-    await chrome.storage.local.set({ pendingStreamId: streamId });
     const res = await sendCommand({ type: "START_RECORDING", desktopStreamId: streamId });
     console.log("[POP] START_RECORDING respuesta:", res);
     refreshState();

@@ -4,7 +4,7 @@ let chunks = [];
 function log(...args) {
   console.log("[OFF]", ...args);
 }
-function err(...args) {
+function errlog(...args) {
   console.error("[OFF]", ...args);
 }
 
@@ -23,10 +23,9 @@ function safeSend(msg) {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   log("mensaje:", msg.type);
   if (msg.type === "OFFSCREEN_START") {
-    // Intentar arrancar si aún no se ha hecho
     if (!mediaRecorder || mediaRecorder.state === "inactive") {
-      startRecordingFromStorage().catch((e) => {
-        err("falló start:", e);
+      startRecording(msg.desktopStreamId).catch((e) => {
+        errlog("falló start:", e);
         safeSend({ type: "RECORDING_ERROR", error: String(e) });
       });
     }
@@ -40,7 +39,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         mediaRecorder.stop();
       }
     } catch (e) {
-      err("stop:", e);
+      errlog("stop:", e);
     }
     sendResponse({ ok: true });
     return false;
@@ -49,55 +48,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-async function startRecordingFromStorage() {
-  const { pendingStreamId } = await chrome.storage.local.get("pendingStreamId");
-  log("streamId pendiente:", pendingStreamId);
-  if (!pendingStreamId) {
-    throw new Error("No hay streamId pendiente");
-  }
+async function startRecording(desktopStreamId) {
+  if (!desktopStreamId) throw new Error("Falta streamId");
+  log("streamId:", desktopStreamId);
 
-  // Capturar video (y audio del sistema con chromeMediaSource: desktop)
-  const constraints = {
-    audio: {
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: pendingStreamId,
-      },
-    },
-    video: {
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: pendingStreamId,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        maxFrameRate: 30,
-      },
-    },
-  };
-
+  // Capturar audio+video del escritorio
   let desktopStream;
   try {
-    desktopStream = await navigator.mediaDevices.getUserMedia(constraints);
-    log("stream de pantalla OK, tracks:", desktopStream.getTracks().length);
+    desktopStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: desktopStreamId,
+        },
+      },
+      video: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: desktopStreamId,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFrameRate: 30,
+        },
+      },
+    });
+    log("stream OK (audio+video), tracks:", desktopStream.getTracks().length);
   } catch (e1) {
-    err("getUserMedia con audio falló:", e1);
-    // Reintentar solo con video (sistema de audio quizás no soportado)
+    errlog("getUserMedia audio+video falló:", e1);
+    // Reintentar solo con video
     try {
-      const videoOnly = {
+      desktopStream = await navigator.mediaDevices.getUserMedia({
         video: {
           mandatory: {
             chromeMediaSource: "desktop",
-            chromeMediaSourceId: pendingStreamId,
+            chromeMediaSourceId: desktopStreamId,
             maxWidth: 1920,
             maxHeight: 1080,
             maxFrameRate: 30,
           },
         },
-      };
-      desktopStream = await navigator.mediaDevices.getUserMedia(videoOnly);
-      log("stream de pantalla (solo video) OK");
+      });
+      log("stream OK (solo video)");
     } catch (e2) {
-      err("getUserMedia solo video también falló:", e2);
+      errlog("getUserMedia solo video también falló:", e2);
       throw e2;
     }
   }
@@ -126,7 +119,7 @@ async function startRecordingFromStorage() {
     );
     log("micrófono mezclado");
   } catch (e) {
-    log("sin micrófono, usando audio del sistema (si lo hubo)");
+    log("sin micrófono");
   }
 
   const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
@@ -135,7 +128,7 @@ async function startRecordingFromStorage() {
     ? "video/webm;codecs=vp8,opus"
     : "video/webm";
 
-  log("mime elegido:", mime);
+  log("mime:", mime);
 
   mediaRecorder = new MediaRecorder(mixedStream, { mimeType: mime });
   chunks = [];
@@ -151,17 +144,13 @@ async function startRecordingFromStorage() {
     const reader = new FileReader();
     reader.onload = () => {
       log("reader onload, length:", reader.result?.length);
-      safeSend({
-        type: "RECORDING_COMPLETE",
-        dataUrl: reader.result,
-      });
+      safeSend({ type: "RECORDING_COMPLETE", dataUrl: reader.result });
     };
     reader.onerror = () => {
-      err("FileReader error");
+      errlog("FileReader error");
       safeSend({ type: "RECORDING_ERROR", error: "FileReader falló" });
     };
     reader.readAsDataURL(blob);
-
     mixedStream.getTracks().forEach((t) => t.stop());
   };
 
@@ -169,19 +158,3 @@ async function startRecordingFromStorage() {
   log("MediaRecorder arrancado");
   safeSend({ type: "RECORDING_STARTED" });
 }
-
-// Al cargar el documento offscreen, intentar arrancar si hay streamId pendiente
-document.addEventListener("DOMContentLoaded", () => {
-  log("offscreen cargado");
-  chrome.storage.local.get("pendingStreamId", ({ pendingStreamId }) => {
-    if (pendingStreamId) {
-      log("streamId encontrado al cargar, arrancando...");
-      startRecordingFromStorage().catch((e) => {
-        err("falló start al cargar:", e);
-        safeSend({ type: "RECORDING_ERROR", error: String(e) });
-      });
-    } else {
-      log("no hay streamId pendiente al cargar");
-    }
-  });
-});
