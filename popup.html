@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      width: 280px;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #1e1e2e;
+      color: #f5f5f5;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 12px;
+      text-align: center;
+    }
+    .status {
+      font-size: 12px;
+      text-align: center;
+      margin-bottom: 12px;
+      padding: 6px;
+      border-radius: 6px;
+      background: #313244;
+    }
+    .recording { background: #b42222 !important; }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+    }
+    #start { background: #4caf50; }
+    #start:hover { background: #43a047; }
+    #start:disabled { background: #555; cursor: not-allowed; }
+    #stop { background: #e53935; display: none; }
+    #stop:hover { background: #c62828; }
+    #download { background: #1e88e5; display: none; }
+    #download:hover { background: #1565c0; }
+    .timer {
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Screen Recorder</h1>
+  <div id="status" class="status">Listo para grabar</div>
+  <div id="timer" class="timer">00:00</div>
+  <button id="start">Iniciar grabación</button>
+  <button id="stop">Detener</button>
+  <button id="download">Descargar video</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
