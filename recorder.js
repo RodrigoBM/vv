@@ -2,6 +2,7 @@ let mediaRecorder = null;
 let chunks = [];
 let timerInterval = null;
 let elapsed = 0;
+let blobUrl = null;
 
 function log(...args) {
   console.log("[REC]", ...args);
@@ -112,6 +113,7 @@ async function startRecording() {
     const blob = new Blob(chunks, { type: "video/webm" });
     log("blob size:", blob.size);
     const url = URL.createObjectURL(blob);
+    blobUrl = url;
     safeSend({ type: "RECORDING_COMPLETE", dataUrl: url });
     document.getElementById("status").textContent = "Grabacion completada. Puedes cerrar.";
     document.getElementById("stop").style.display = "none";
@@ -162,7 +164,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     sendResponse({ ok: true });
   }
-  return false;
+  if (msg.type === "RECORDER_DOWNLOAD") {
+    if (!blobUrl) {
+      sendResponse({ ok: false, error: "no hay grabacion disponible" });
+      return false;
+    }
+    const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
+    log("descargando:", filename);
+    chrome.downloads.download({ url: blobUrl, filename, saveAs: true }, () => {
+      if (chrome.runtime.lastError) {
+        log("error descarga:", chrome.runtime.lastError.message);
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ ok: true });
+      }
+    });
+  }
+  return true;
 });
 
 document.addEventListener("DOMContentLoaded", () => {

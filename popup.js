@@ -97,10 +97,11 @@ stopBtn.addEventListener("click", async () => {
 
 downloadBtn.addEventListener("click", () => {
   log("click Descargar");
-  sendCommand({ type: "GET_STATE" }).then((state) => {
-    if (!state?.videoUrl) return;
-    const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
-    chrome.downloads.download({ url: state.videoUrl, filename, saveAs: true });
+  sendCommand({ type: "DOWNLOAD_RECORDING" }).then((res) => {
+    log("descarga resultado:", res);
+    if (res && !res.ok) {
+      statusEl.textContent = "Error: no se pudo descargar ( graba de nuevo)";
+    }
   });
 });
 

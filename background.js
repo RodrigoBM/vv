@@ -64,6 +64,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "DOWNLOAD_RECORDING") {
+    getState().then((state) => {
+      if (!state.recTabId) {
+        sendResponse({ ok: false, error: "no hay pestaña recorder" });
+        return;
+      }
+      chrome.tabs.sendMessage(state.recTabId, { type: "RECORDER_DOWNLOAD" }, (res) => {
+        sendResponse(res || { ok: false });
+      });
+    });
+    return true;
+  }
+
   if (msg.type === "RECORDING_STARTED") {
     setState({ isRecording: true, videoUrl: null, startedAt: Date.now() });
     return false;
