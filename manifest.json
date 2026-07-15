@@ -3,7 +3,7 @@
   "name": "Screen Recorder",
   "version": "1.5.0",
   "description": "Graba la pantalla de tu navegador con audio.",
-  "permissions": ["desktopCapture", "downloads", "storage", "windows", "tabs"],
+  "permissions": ["desktopCapture", "downloads", "storage", "unlimitedStorage", "windows", "tabs"],
   "background": {
     "service_worker": "background.js"
   },

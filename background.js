@@ -65,15 +65,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "DOWNLOAD_RECORDING") {
-    getState().then((state) => {
-      if (!state.recTabId) {
-        sendResponse({ ok: false, error: "no hay pestaña recorder" });
+    (async () => {
+      const state = await getState();
+      if (!state.videoUrl) {
+        sendResponse({ ok: false, error: "no hay grabacion disponible" });
         return;
       }
-      chrome.tabs.sendMessage(state.recTabId, { type: "RECORDER_DOWNLOAD" }, (res) => {
-        sendResponse(res || { ok: false });
+      const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
+      chrome.downloads.download({ url: state.videoUrl, filename, saveAs: true }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("[BG] error descarga:", chrome.runtime.lastError.message);
+          sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ ok: true });
+        }
       });
-    });
+    })();
     return true;
   }
 

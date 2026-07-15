@@ -2,7 +2,6 @@ let mediaRecorder = null;
 let chunks = [];
 let timerInterval = null;
 let elapsed = 0;
-let blobUrl = null;
 
 function log(...args) {
   console.log("[REC]", ...args);
@@ -112,12 +111,21 @@ async function startRecording() {
     log("onstop, chunks:", chunks.length);
     const blob = new Blob(chunks, { type: "video/webm" });
     log("blob size:", blob.size);
-    const url = URL.createObjectURL(blob);
-    blobUrl = url;
-    safeSend({ type: "RECORDING_COMPLETE", dataUrl: url });
-    document.getElementById("status").textContent = "Grabacion completada. Puedes cerrar.";
-    document.getElementById("stop").style.display = "none";
-    document.querySelector(".dot").style.display = "none";
+    document.getElementById("status").textContent = "Procesando video...";
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      log("dataUrl length:", dataUrl.length);
+      safeSend({ type: "RECORDING_COMPLETE", dataUrl: dataUrl });
+      document.getElementById("status").textContent = "Grabacion completada. Puedes cerrar.";
+      document.getElementById("stop").style.display = "none";
+      document.querySelector(".dot").style.display = "none";
+    };
+    reader.onerror = () => {
+      log("FileReader error");
+      safeSend({ type: "RECORDING_ERROR", error: "No se pudo procesar el video" });
+    };
+    reader.readAsDataURL(blob);
     stopTimer();
     mixedStream.getTracks().forEach((t) => t.stop());
   };
@@ -164,23 +172,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     sendResponse({ ok: true });
   }
-  if (msg.type === "RECORDER_DOWNLOAD") {
-    if (!blobUrl) {
-      sendResponse({ ok: false, error: "no hay grabacion disponible" });
-      return false;
-    }
-    const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
-    log("descargando:", filename);
-    chrome.downloads.download({ url: blobUrl, filename, saveAs: true }, () => {
-      if (chrome.runtime.lastError) {
-        log("error descarga:", chrome.runtime.lastError.message);
-        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-      } else {
-        sendResponse({ ok: true });
-      }
-    });
-  }
-  return true;
+  return false;
 });
 
 document.addEventListener("DOMContentLoaded", () => {
