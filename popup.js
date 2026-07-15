@@ -4,8 +4,6 @@ const downloadBtn = document.getElementById("download");
 const statusEl = document.getElementById("status");
 const timerEl = document.getElementById("timer");
 
-let mediaRecorder = null;
-let chunks = [];
 let timerInterval = null;
 let elapsed = 0;
 
@@ -16,11 +14,7 @@ function log(...args) {
 async function refreshState() {
   const { state } = await chrome.storage.local.get("state");
   log("estado:", state);
-  if (!state) {
-    applyState({ isRecording: false, videoUrl: null });
-    return;
-  }
-  applyState(state);
+  applyState(state || { isRecording: false, videoUrl: null });
 }
 
 function applyState(state) {
@@ -90,119 +84,23 @@ startBtn.addEventListener("click", () => {
       statusEl.textContent = "Permiso denegado";
       return;
     }
-    try {
-      await startRecording(streamId);
-    } catch (e) {
-      log("ERROR startRecording:", e);
-      statusEl.textContent = "Error: " + e.message;
-    }
+    // Limpiar estado y guardar streamId para la pestaña recorder
+    await chrome.storage.local.set({
+      state: { isRecording: false, videoUrl: null, startedAt: null },
+      pendingStreamId: streamId,
+    });
+    log("abriendo recorder.html");
+    chrome.tabs.create({ url: chrome.runtime.getURL("recorder.html") });
+    refreshState();
   });
 });
 
-async function startRecording(streamId) {
-  log("startRecording, streamId:", streamId);
-
-  // Capturar pantalla (video + audio del sistema)
-  let desktopStream;
-  try {
-    desktopStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: streamId,
-        },
-      },
-      video: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: streamId,
-          maxWidth: 1920,
-          maxHeight: 1080,
-          maxFrameRate: 30,
-        },
-      },
-    });
-    log("desktopStream OK, tracks:", desktopStream.getTracks().length);
-  } catch (e1) {
-    log("audio+video falló:", e1.message);
-    // Reintentar solo video
-    desktopStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: streamId,
-          maxWidth: 1920,
-          maxHeight: 1080,
-          maxFrameRate: 30,
-        },
-      },
-    });
-    log("desktopStream OK (solo video), tracks:", desktopStream.getTracks().length);
-  }
-
-  let mixedStream = desktopStream;
-
-  // Mezclar micrófono si está disponible
-  try {
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    });
-    log("micrófono OK");
-    const audioCtx = new AudioContext();
-    const dest = audioCtx.createMediaStreamDestination();
-    const desktopTrack = desktopStream.getAudioTracks()[0];
-    const micTrack = micStream.getAudioTracks()[0];
-    if (desktopTrack) {
-      audioCtx.createMediaStreamSource(new MediaStream([desktopTrack])).connect(dest);
-    }
-    if (micTrack) {
-      audioCtx.createMediaStreamSource(new MediaStream([micTrack])).connect(dest);
-    }
-    const videoTrack = desktopStream.getVideoTracks()[0];
-    mixedStream = new MediaStream(
-      [videoTrack, ...dest.stream.getAudioTracks()].filter(Boolean)
-    );
-    log("audio mezclado (sistema + micro)");
-  } catch (e) {
-    log("sin micrófono, audio del sistema solo (si lo hubo)");
-  }
-
-  const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-    ? "video/webm;codecs=vp9,opus"
-    : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-    ? "video/webm;codecs=vp8,opus"
-    : "video/webm";
-  log("mime:", mime);
-
-  mediaRecorder = new MediaRecorder(mixedStream, { mimeType: mime });
-  chunks = [];
-
-  mediaRecorder.ondataavailable = (e) => {
-    log("dataavailable, size:", e.data?.size);
-    if (e.data && e.data.size > 0) chunks.push(e.data);
-  };
-
-  mediaRecorder.onstop = () => {
-    log("onstop, chunks:", chunks.length, "total size:", chunks.reduce((a, c) => a + c.size, 0));
-    const blob = new Blob(chunks, { type: "video/webm" });
-    log("blob size:", blob.size);
-    const url = URL.createObjectURL(blob);
-    log("blob url creada");
-    setState({ isRecording: false, videoUrl: url, startedAt: null });
-    mixedStream.getTracks().forEach((t) => t.stop());
-  };
-
-  mediaRecorder.start(1000);
-  log("MediaRecorder arrancado, state:", mediaRecorder.state);
-  await setState({ isRecording: true, videoUrl: null, startedAt: Date.now() });
-}
-
 stopBtn.addEventListener("click", () => {
   log("click Detener");
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
-  }
+  chrome.runtime.sendMessage({ type: "STOP_RECORDING" }, () => {
+    if (chrome.runtime.lastError) log("error:", chrome.runtime.lastError.message);
+    refreshState();
+  });
 });
 
 downloadBtn.addEventListener("click", () => {
