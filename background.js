@@ -1,48 +1,71 @@
-let recordingState = {
+const DEFAULT_STATE = {
   isRecording: false,
   videoUrl: null,
   startedAt: null,
 };
-let streamId = null;
+
+async function getState() {
+  const { state } = await chrome.storage.local.get("state");
+  return state || DEFAULT_STATE;
+}
+
+async function setState(patch) {
+  const current = await getState();
+  const next = { ...current, ...patch };
+  await chrome.storage.local.set({ state: next });
+  return next;
+}
+
+// Utilidad para enviar mensajes esperando respuesta, ignorando "no receptor"
+function sendToOffscreen(msg) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, () => {
+      if (chrome.runtime.lastError) {
+        // No hay receptor (offscreen no existe o ya cerró)
+      }
+      resolve();
+    });
+  });
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "GET_STATE") {
-    sendResponse(recordingState);
-    return false;
+    getState().then(sendResponse);
+    return true;
   }
 
   if (msg.type === "START_RECORDING") {
-    chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], (id) => {
+    chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (id) => {
       if (!id) {
         sendResponse({ ok: false, error: "Permiso denegado" });
         return;
       }
-      streamId = id;
-      startRecordingWithOffscreen(id)
-        .then(() => sendResponse({ ok: true }))
-        .catch((e) => sendResponse({ ok: false, error: String(e) }));
+      try {
+        await startRecordingWithOffscreen(id);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
     });
     return true;
   }
 
   if (msg.type === "STOP_RECORDING") {
-    chrome.runtime.sendMessage({ type: "OFFSCREEN_STOP" }, () => {
-      recordingState.isRecording = false;
+    (async () => {
+      await sendToOffscreen({ type: "OFFSCREEN_STOP" });
+      await setState({ isRecording: false, startedAt: null });
       sendResponse({ ok: true });
-    });
+    })();
     return true;
   }
 
   if (msg.type === "RECORDING_STARTED") {
-    recordingState.isRecording = true;
-    recordingState.videoUrl = null;
-    recordingState.startedAt = Date.now();
+    setState({ isRecording: true, videoUrl: null, startedAt: Date.now() });
     return false;
   }
 
   if (msg.type === "RECORDING_COMPLETE") {
-    recordingState.isRecording = false;
-    recordingState.videoUrl = msg.dataUrl;
+    setState({ isRecording: false, videoUrl: msg.dataUrl, startedAt: null });
     return false;
   }
 
@@ -55,10 +78,10 @@ async function startRecordingWithOffscreen(desktopStreamId) {
     await chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: ["USER_MEDIA", "DISPLAY_MEDIA"],
-      justification: "Grabación de pantalla",
+      justification: "Grabacion de pantalla",
     });
   }
-  await chrome.runtime.sendMessage({
+  await sendToOffscreen({
     type: "OFFSCREEN_START",
     desktopStreamId,
   });

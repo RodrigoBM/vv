@@ -10,8 +10,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "OFFSCREEN_STOP") {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop();
+    try {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+    } catch (e) {
+      // ignore
     }
     sendResponse({ ok: true });
     return false;
@@ -19,6 +23,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   return false;
 });
+
+function safeSend(msg) {
+  try {
+    chrome.runtime.sendMessage(msg, () => {
+      if (chrome.runtime.lastError) {
+        // receptor no disponible, ignorar
+      }
+    });
+  } catch (e) {
+    // ignorar
+  }
+}
 
 async function startRecording(desktopStreamId) {
   const desktopStream = await navigator.mediaDevices.getUserMedia({
@@ -82,7 +98,7 @@ async function startRecording(desktopStreamId) {
     const blob = new Blob(chunks, { type: "video/webm" });
     const reader = new FileReader();
     reader.onload = () => {
-      chrome.runtime.sendMessage({
+      safeSend({
         type: "RECORDING_COMPLETE",
         dataUrl: reader.result,
       });
@@ -94,5 +110,5 @@ async function startRecording(desktopStreamId) {
 
   mediaRecorder.start(1000);
 
-  chrome.runtime.sendMessage({ type: "RECORDING_STARTED" });
+  safeSend({ type: "RECORDING_STARTED" });
 }

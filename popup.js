@@ -8,10 +8,24 @@ let chunkUrl = null;
 let timerInterval = null;
 let elapsed = 0;
 
-async function refreshState() {
-  const state = await chrome.runtime.sendMessage({ type: "GET_STATE" });
-  if (!state) return;
+function sendCommand(msg) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, (res) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(res);
+    });
+  });
+}
 
+async function refreshState() {
+  const { state } = await chrome.storage.local.get("state");
+  applyState(state || { isRecording: false, videoUrl: null, startedAt: null });
+}
+
+function applyState(state) {
   if (state.isRecording) {
     statusEl.textContent = "Grabando...";
     statusEl.classList.add("recording");
@@ -21,7 +35,7 @@ async function refreshState() {
     startTimer(state.startedAt);
   } else if (state.videoUrl) {
     chunkUrl = state.videoUrl;
-    statusEl.textContent = "Grabación lista";
+    statusEl.textContent = "Grabacion lista";
     statusEl.classList.remove("recording");
     startBtn.style.display = "block";
     stopBtn.style.display = "none";
@@ -64,20 +78,27 @@ function updateTimer() {
 
 startBtn.addEventListener("click", async () => {
   startBtn.disabled = true;
-  await chrome.runtime.sendMessage({ type: "START_RECORDING" });
+  await sendCommand({ type: "START_RECORDING" });
   startBtn.disabled = false;
   refreshState();
 });
 
 stopBtn.addEventListener("click", async () => {
-  await chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
+  await sendCommand({ type: "STOP_RECORDING" });
   refreshState();
 });
 
-downloadBtn.addEventListener("click", async () => {
+downloadBtn.addEventListener("click", () => {
   if (!chunkUrl) return;
   const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
   chrome.downloads.download({ url: chunkUrl, filename, saveAs: true });
+});
+
+// Escuchar cambios de estado en storage
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.state) {
+    applyState(changes.state.newValue);
+  }
 });
 
 document.addEventListener("DOMContentLoaded", refreshState);
