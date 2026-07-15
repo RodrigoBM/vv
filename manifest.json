@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Screen Recorder",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Graba la pantalla de tu navegador con audio.",
-  "permissions": ["desktopCapture", "downloads", "storage", "windows"],
+  "permissions": ["desktopCapture", "downloads", "storage", "windows", "tabs"],
   "background": {
     "service_worker": "background.js"
   },

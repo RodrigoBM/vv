@@ -68,7 +68,7 @@ function startTimer(startedAt) {
 }
 
 function stopTimer() {
-  if (timerInterval) clearTimeout(timerInterval);
+  if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
 }
 
@@ -81,16 +81,10 @@ function updateTimer() {
 startBtn.addEventListener("click", () => {
   log("click Iniciar");
   startBtn.disabled = true;
-  statusEl.textContent = "Elige fuente...";
-  chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (streamId) => {
-    log("streamId:", streamId);
-    startBtn.disabled = false;
-    if (!streamId) {
-      statusEl.textContent = "Permiso denegado";
-      return;
-    }
-    await sendCommand({ type: "OPEN_REC_WINDOW", desktopStreamId: streamId });
-    refreshState();
+  statusEl.textContent = "Abriendo ventana de grabacion...";
+  // La ventana recorder llamará chooseDesktopMedia ella misma
+  sendCommand({ type: "OPEN_REC_WINDOW" }).then(() => {
+    log("ventana abierta");
     window.close();
   });
 });

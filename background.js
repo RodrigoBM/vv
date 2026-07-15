@@ -33,7 +33,7 @@ function sendToRecWindow(msg) {
         if (tab) {
           chrome.tabs.sendMessage(tab.id, msg, () => {
             if (chrome.runtime.lastError) {
-              console.log("[BG] ventana no respondió:", chrome.runtime.lastError.message);
+              console.log("[BG] ventana no respondio:", chrome.runtime.lastError.message);
             }
             resolve();
           });
@@ -54,19 +54,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "OPEN_REC_WINDOW") {
-    (async () => {
-      const streamId = msg.desktopStreamId;
-      await chrome.storage.local.set({ pendingStreamId: streamId });
-      chrome.windows.create({
-        url: chrome.runtime.getURL("recorder.html") + "?sid=" + encodeURIComponent(streamId),
-        type: "popup",
-        width: 360,
-        height: 200,
-      }, async (win) => {
-        await setState({ recWindowId: win.id });
-        sendResponse({ ok: true });
-      });
-    })();
+    chrome.windows.create({
+      url: chrome.runtime.getURL("recorder.html"),
+      type: "popup",
+      width: 380,
+      height: 220,
+    }, async (win) => {
+      await setState({ recWindowId: win.id });
+      sendResponse({ ok: true });
+    });
     return true;
   }
 
@@ -89,7 +85,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "RECORDING_ERROR") {
-    console.error("[BG] error grabación:", msg.error);
+    console.error("[BG] error grabacion:", msg.error);
     setState({ isRecording: false, startedAt: null });
     return false;
   }

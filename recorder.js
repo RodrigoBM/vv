@@ -18,11 +18,17 @@ function safeSend(msg) {
 }
 
 async function startRecording() {
-  const params = new URLSearchParams(location.search);
-  const streamId = params.get("sid");
+  log("recorder cargado, pidiendo fuente...");
+
+  // Llamar chooseDesktopMedia AQUI (mismo contexto que getUserMedia)
+  const streamId = await new Promise((resolve) => {
+    chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], resolve);
+  });
+
   log("streamId:", streamId);
   if (!streamId) {
-    document.getElementById("status").textContent = "No hay streamId";
+    document.getElementById("status").textContent = "Permiso denegado";
+    safeSend({ type: "RECORDING_ERROR", error: "Permiso denegado" });
     return;
   }
 
@@ -107,8 +113,9 @@ async function startRecording() {
     log("blob size:", blob.size);
     const url = URL.createObjectURL(blob);
     safeSend({ type: "RECORDING_COMPLETE", dataUrl: url });
-    document.getElementById("status").textContent = "Grabacion completada. Puedes cerrar esta ventana.";
+    document.getElementById("status").textContent = "Grabacion completada. Puedes cerrar.";
     document.getElementById("stop").style.display = "none";
+    document.querySelector(".dot").style.display = "none";
     stopTimer();
     mixedStream.getTracks().forEach((t) => t.stop());
   };
@@ -158,7 +165,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-document.addEventListener("DOMContentLoaded", () => {
-  log("recorder cargado");
-  startRecording();
-});
+document.addEventListener("DOMContentLoaded", startRecording);
