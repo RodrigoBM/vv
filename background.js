@@ -35,18 +35,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "START_RECORDING") {
-    chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (id) => {
-      if (!id) {
-        sendResponse({ ok: false, error: "Permiso denegado" });
-        return;
-      }
+    (async () => {
       try {
-        await startRecordingWithOffscreen(id);
+        if (!msg.desktopStreamId) throw new Error("Falta streamId");
+        await startRecordingWithOffscreen(msg.desktopStreamId);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ ok: false, error: String(e) });
       }
-    });
+    })();
     return true;
   }
 

@@ -76,11 +76,18 @@ function updateTimer() {
   timerEl.textContent = `${m}:${s}`;
 }
 
-startBtn.addEventListener("click", async () => {
+startBtn.addEventListener("click", () => {
   startBtn.disabled = true;
-  await sendCommand({ type: "START_RECORDING" });
-  startBtn.disabled = false;
-  refreshState();
+  // chooseDesktopMedia debe llamarse desde una página de extensión (popup), no desde el SW
+  chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (streamId) => {
+    startBtn.disabled = false;
+    if (!streamId) {
+      statusEl.textContent = "Permiso denegado";
+      return;
+    }
+    await sendCommand({ type: "START_RECORDING", desktopStreamId: streamId });
+    refreshState();
+  });
 });
 
 stopBtn.addEventListener("click", async () => {
