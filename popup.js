@@ -78,14 +78,18 @@ function updateTimer() {
 
 startBtn.addEventListener("click", () => {
   startBtn.disabled = true;
-  // chooseDesktopMedia debe llamarse desde una página de extensión (popup), no desde el SW
+  statusEl.textContent = "Elige fuente...";
   chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (streamId) => {
     startBtn.disabled = false;
     if (!streamId) {
       statusEl.textContent = "Permiso denegado";
       return;
     }
-    await sendCommand({ type: "START_RECORDING", desktopStreamId: streamId });
+    // Limpiar grabación anterior antes de empezar
+    await chrome.storage.local.remove("state");
+    await chrome.storage.local.set({ pendingStreamId: streamId });
+    const res = await sendCommand({ type: "START_RECORDING", desktopStreamId: streamId });
+    console.log("[POP] START_RECORDING respuesta:", res);
     refreshState();
   });
 });
