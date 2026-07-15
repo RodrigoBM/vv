@@ -70,7 +70,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "RECORDING_ERROR") {
     console.error("[BG] error grabación offscreen:", msg.error);
-    await setState({ isRecording: false, startedAt: null });
+    setState({ isRecording: false, startedAt: null });
     return false;
   }
 
