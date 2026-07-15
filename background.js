@@ -2,7 +2,7 @@ const DEFAULT_STATE = {
   isRecording: false,
   videoUrl: null,
   startedAt: null,
-  recWindowId: null,
+  recTabId: null,
 };
 
 async function getState() {
@@ -20,26 +20,15 @@ async function setState(patch) {
 function sendToRecWindow(msg) {
   return new Promise((resolve) => {
     getState().then((state) => {
-      if (!state.recWindowId) {
+      if (!state.recTabId) {
         resolve();
         return;
       }
-      chrome.windows.get(state.recWindowId, { populate: true }, (win) => {
-        if (chrome.runtime.lastError || !win) {
-          resolve();
-          return;
+      chrome.tabs.sendMessage(state.recTabId, msg, () => {
+        if (chrome.runtime.lastError) {
+          console.log("[BG] pestaña no respondio:", chrome.runtime.lastError.message);
         }
-        const tab = win.tabs && win.tabs[0];
-        if (tab) {
-          chrome.tabs.sendMessage(tab.id, msg, () => {
-            if (chrome.runtime.lastError) {
-              console.log("[BG] ventana no respondio:", chrome.runtime.lastError.message);
-            }
-            resolve();
-          });
-        } else {
-          resolve();
-        }
+        resolve();
       });
     });
   });
@@ -54,13 +43,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "OPEN_REC_WINDOW") {
-    chrome.windows.create({
-      url: chrome.runtime.getURL("recorder.html"),
-      type: "popup",
-      width: 380,
-      height: 220,
-    }, async (win) => {
-      await setState({ recWindowId: win.id });
+    chrome.tabs.create({ url: chrome.runtime.getURL("recorder.html") }, async (tab) => {
+      await setState({ recTabId: tab.id });
       sendResponse({ ok: true });
     });
     return true;
@@ -93,9 +77,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-chrome.windows.onRemoved.addListener(async (windowId) => {
+chrome.tabs.onRemoved.addListener(async (tabId) => {
   const state = await getState();
-  if (state.recWindowId === windowId) {
-    await setState({ recWindowId: null, isRecording: false, startedAt: null });
+  if (state.recTabId === tabId) {
+    await setState({ recTabId: null, isRecording: false, startedAt: null });
   }
 });

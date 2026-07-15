@@ -165,4 +165,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
-document.addEventListener("DOMContentLoaded", startRecording);
+document.addEventListener("DOMContentLoaded", () => {
+  log("recorder cargado, esperando 300ms...");
+  setTimeout(startRecording, 300);
+});
