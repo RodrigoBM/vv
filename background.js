@@ -43,7 +43,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "OPEN_REC_WINDOW") {
-    chrome.tabs.create({ url: chrome.runtime.getURL("recorder.html") }, async (tab) => {
+    chrome.windows.create({
+      url: chrome.runtime.getURL("recorder.html"),
+      type: "popup",
+      width: 380,
+      height: 220,
+    }, async (win) => {
+      const tab = win.tabs[0];
       await setState({ recTabId: tab.id });
       sendResponse({ ok: true });
     });
