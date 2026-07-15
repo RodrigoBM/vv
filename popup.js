@@ -1,3 +1,12 @@
+const startBtn = document.getElementById("start");
+const stopBtn = document.getElementById("stop");
+const downloadBtn = document.getElementById("download");
+const statusEl = document.getElementById("status");
+const timerEl = document.getElementById("timer");
+
+let chunkUrl = null;
+let timerInterval = null;
+let elapsed = 0;
 let mediaRecorder = null;
 let chunks = [];
 
